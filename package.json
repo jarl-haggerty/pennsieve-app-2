@@ -1,9 +1,11 @@
 {
   "name": "pennsieve-app",
+  "author": "Pennsieve",
   "version": "35.1.1",
   "description": "",
-  "author": "Pennsieve",
   "private": true,
+  "main": "main.js",
+  "electronVersion": "31.2.0",
   "scripts": {
     "dev": "webpack-dev-server --inline --progress --config build/webpack.dev.conf.js",
     "clean": "yarn cache clean && rm -rf node_modules",
@@ -29,7 +31,8 @@
     "release:minor": "changelog -m && git add CHANGELOG.md && git commit -m 'updated CHANGELOG.md'",
     "release:patch": "changelog -p && git add CHANGELOG.md && git commit -m 'updated CHANGELOG.md'",
     "generate-icons": "vsvg -s ./static/icons -t ./src/assets/icons",
-    "generate-files-json": "./src/supported-files/index.js"
+    "generate-files-json": "./src/supported-files/index.js",
+    "package-electron": "cp main.js dist && cp package.json dist && npx @electron/packager dist"
   },
   "dependencies": {
     "animejs": "^2.2.0",
@@ -41,6 +44,7 @@
     "cropperjs": "^1.5.1",
     "cypress": "^3.1.4",
     "d3": "^4.13.0",
+    "electron": "^31.3.0",
     "element-ui": "^2.12.0",
     "eslint-plugin-vue": "^5.1.0",
     "fabric": "1.7.17",
@@ -146,7 +150,7 @@
     "d3-selection": "1.3.0"
   },
   "engines": {
-    "node": "^14.21.1",
+    "node": ">=14.21.1",
     "npm": ">=6.14"
   },
   "browserslist": [

@@ -408,6 +408,14 @@
                 }
             },
             _getAnnResponse(e) {
+                const profileId = this.$store.getters.profile.id;
+                const allOrganizations = this.$store.getters.organizations;
+                const currentOrganizationId = this.$store.getters.dataset.organization;
+                const currentOrganization = allOrganizations.find(org => {
+                  return org.organization.id === currentOrganizationId;
+                });
+                const isAdmin = currentOrganization && currentOrganization.isAdmin;
+
                 // const userMap = R.pathOr([], ['users'], e);
                 const linkedPackages = propOr({}, 'linkedPackages', e)
                 let resp = pathOr([], ['annotations', 'results'], e)
@@ -436,6 +444,9 @@
                     const annotations = []
                     for (let i = 0; i < resp.length; i++) {
                         const curAnn = resp[i];
+                        if(!isAdmin && curAnn.userId !== profileId) {
+                          continue;
+                        }
                         // if (this.annotations.indexOf(curAnn.id) >= 0) {
                         //     // annotation already exists
                         //     continue;

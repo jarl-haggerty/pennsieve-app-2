@@ -347,7 +347,7 @@
                 this.sendXhr(url)
                 .then(resp => {
                     // console.log(resp)
-                    this.annotations = resp;
+                    this.annotations = {};
                     this.render();
                 })
 
