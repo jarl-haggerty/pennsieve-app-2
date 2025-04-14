@@ -25,6 +25,8 @@
     "cypress:run": "yarn cypress:setup && cypress run --browser chrome",
     "lint": "eslint --ext .js,.vue src test/unit",
     "build-dev": "yarn site-config-dev && node build/build.js",
+    "build-server": "yarn site-config-dev && node build/build-server.js",
+    "run-server": "cd dist && node main.js",
     "build-production": "yarn site-config-prod && node build/build.js",
     "commit": "commit-wizard",
     "release:major": "changelog -M && git add CHANGELOG.md && git commit -m 'updated CHANGELOG.md'",
@@ -32,7 +34,7 @@
     "release:patch": "changelog -p && git add CHANGELOG.md && git commit -m 'updated CHANGELOG.md'",
     "generate-icons": "vsvg -s ./static/icons -t ./src/assets/icons",
     "generate-files-json": "./src/supported-files/index.js",
-    "package-electron": "cp main.js dist && cp package.json dist && npx @electron/packager dist"
+    "package-electron": "cp package.json dist && npx @electron/packager dist"
   },
   "dependencies": {
     "animejs": "^2.2.0",

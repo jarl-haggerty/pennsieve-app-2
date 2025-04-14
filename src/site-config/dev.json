@@ -11,7 +11,7 @@
   "ORCIDUrl": "https://sandbox.orcid.org/oauth/authorize?client_id=APP-4FK9BTFUGZITFOAJ&response_type=code&scope=/read-limited%20/activities/update&redirect_uri=https://app.pennsieve.net/orcid-redirect",
   "conceptsUrl": "https://api.pennsieve.net/models",
   "mockApiUrl": "http://localhost:9000",
-  "timeSeriesUrl": "wss://api.pennsieve.net/streaming/ts/query",
+  "timeSeriesUrl": "ws://localhost:3000/streaming/ts/query",
   "timeSeriesApi": "https://api.pennsieve.net/streaming",
   "bucket": "https://pennsieve-dev-uploads-use1.s3.amazonaws.com",
   "bucketName": "pennsieve-dev-uploads-use1",

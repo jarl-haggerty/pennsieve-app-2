@@ -78,9 +78,11 @@
     </div>
 
     <timeseries-viewer-toolbar
+      ref="toolbar"
       :constants="constants"
       :duration="duration"
       :start="start"
+      @playbackChanged="onPlaybackChanged"
       @pageBack="onPageBack"
       @pageForward="onPageForward"
       @incrementZoom="onIncrementZoom"
@@ -90,6 +92,9 @@
       @previousAnnotation="onPreviousAnnotation"
       @setStart="updateStart"
     />
+    
+    <input ref="videoInput" type="file" id="video-input" accept="video/*"/>
+    <video ref="videoPlayer" width="100" height="100"/>
 
     <timeseries-filter-modal
       ref="filterWindow"
@@ -251,6 +256,7 @@
             this.cHeight = (this.window_height - 88)
             this.duration = this.constants['INITDURATION']
 
+            this.$refs.videoInput.addEventListener('change', this.loadVideo.bind(this))
         },
 
         beforeDestroy() {
@@ -258,6 +264,24 @@
         },
 
         methods: {
+            onPlaybackChanged: function(e) {
+              this.$refs.videoPlayer.playbackRate = this.$refs.toolbar.selectedPlaySpeed
+              if(this.$refs.toolbar.isPlaying) {
+                this.$refs.videoPlayer.play()
+              } else {
+                this.$refs.videoPlayer.pause()
+                this.updateStart(this.start)
+              }
+	    },
+            loadVideo: function(e) {
+              let file = e.target.files[0]
+              if(!file) {
+                return
+              }
+	      let url = URL.createObjectURL(file);
+	      this.$refs.videoPlayer.src = url
+	      this.$refs.videoPlayer.load() 
+	    },
             openEditAnnotationDialog: function(annotation) {
               this.$store.dispatch('viewer/setActiveAnnotation', annotation).then(() =>{
                 this.$refs.viewerCanvas.renderAnnotationCanvas()
@@ -321,10 +345,10 @@
                 this.$refs.viewerCanvas.renderAll()
             },
             onNextAnnotation: function () {
-                this.start  = this.$refs.viewerCanvas.getNextAnnotation()
+                this.updateStart(this.$refs.viewerCanvas.getNextAnnotation())
             },
             onPreviousAnnotation: function () {
-                this.start  = this.$refs.viewerCanvas.getPreviousAnnotation()
+                this.updateStart(this.$refs.viewerCanvas.getPreviousAnnotation())
             },
             onUpdateDuration: function(value) {
                 this.setDuration(value * 1e6)
@@ -366,7 +390,7 @@
                 setStart = channelOneSegments[i-1] - 0.5*this.duration
               }
 
-              this.start = setStart
+              this.updateStart(setStart)
             },
             onPageForward: function() {
 
@@ -387,7 +411,7 @@
                   setStart = channelOneSegments[i] - 0.5*this.duration
                 }
 
-                this.start = setStart
+                this.updateStart(setStart)
             },
             selectAnnotation: function(payload) {
               let rsPeriod = this.$refs.viewerCanvas.rsPeriod
@@ -427,6 +451,15 @@
             updateStart: function(value) {
                 // console.log('setting start to: ' + value)
                 this.start = value
+                if(!this.$refs.videoPlayer.paused || this.start !== this.start) {
+                  return
+		}
+                const rsPeriod = this.$refs.viewerCanvas.rsPeriod
+                const cursorTimeUs = value + (this.cursorLoc*this.cWidth - this.constants['CURSOROFFSET']) * rsPeriod
+                const videoTime = cursorTimeUs - this.ts_start
+                this.$refs.videoPlayer.play()
+                this.$refs.videoPlayer.currentTime = videoTime*1e-6
+                this.$refs.videoPlayer.pause()
             },
             setCursor: function(value) {
                 // set the cursor location as a fraction of the width of the canvas

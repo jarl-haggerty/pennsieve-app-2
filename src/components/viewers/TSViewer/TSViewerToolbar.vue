@@ -136,6 +136,7 @@
       <el-select
         v-model="selectedPlaySpeed"
         v-if="showPlaybackSpeed"
+	@change="updatePlaybackSpeed"
         placeholder="Select"
         size="mini"
         class="playSelect">
@@ -235,6 +236,7 @@
           },
           updatePlaybackSpeed: function (value) {
             console.log('Updating Playback Speed:' + value)
+            this.$emit('playbackChanged')
           },
           toggleTimeZoom: function () {
             this.showTimeZoom = !this.showTimeZoom
@@ -282,12 +284,14 @@
             }
 
             this.intervalTimer = setTimeout(this.intervalTimerFnc, this.intervalPeriod);
+            this.$emit('playbackChanged')
 
           },
           stopPlay: function() {
             this.isPlaying = false
             this.intervalPeriod = 150;
             clearInterval(this.intervalTimer);
+            this.$emit('playbackChanged')
           }
         }
     }

@@ -1,11 +1,19 @@
-const { app, BrowserWindow } = require('electron')
+//const { app, BrowserWindow } = require('electron')
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
+const afs = require('fs/promises');
+const {Buffer} = require('buffer');
+const ws = require('ws');
+const crypto = require('crypto');
+const querystring = require('querystring');
 
 const server = http.createServer((req, res) => {
-  let filename = __dirname + req.url;
+  let filename = '.' + req.url;
   if(filename.endsWith('/')) {
     filename += 'index.html';
+  } else if (filename.startsWith('./N:')) {
+    filename = './index.html';
   }
   console.log('getting ' + filename);
   fs.readFile(filename, (err, data) => {
@@ -52,13 +60,130 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, headers);
     res.end(data);
   });
-}).listen(3000, () => {
+})
+server.listen(3000, () => {
   console.log('Pennsieve listening')
 
-  app.whenReady().then(() => {
-    createWindow()
+  //app.whenReady().then(() => {
+  //  createWindow()
+  //})
+})
+
+async function readEdf(filename) {
+  const file = await afs.open(filename)
+  const header = Buffer.alloc(256)
+  await file.read(header)
+
+  let offset = 0
+  const ascii = (count) => {
+    const result = header.slice(offset, offset+count).toString()
+    offset += count
+    return result
+  }
+  const verion = ascii(8)
+  const patient = ascii(80)
+  const recording = ascii(80)
+  const startDate = ascii(8)
+  const startTime = ascii(8)
+  const numBytes = ascii(8)
+  const reserved = ascii(44)
+  const numRecords = ascii(8)
+  const duration = ascii(8)
+  const numSignals = ascii(4)
+  console.log(verion)
+  console.log(patient)
+  console.log(recording)
+  console.log(startDate)
+  console.log(startTime)
+  console.log(numBytes)
+  console.log(reserved)
+  console.log(numRecords)
+  console.log(duration)
+  console.log(numSignals)
+}
+
+console.log(ws)
+const wsServer = new ws.Server({server});
+wsServer.on('connection', (socket, request) => {
+  console.log('websocket connect ' + request.url)
+  
+  const parsed = querystring.decode(request.url)
+  const apiKey = parsed['api_key']
+  const packageId = parsed['package']
+
+  const hash = crypto.createHash('sha1')
+  hash.update(packageId)
+  const packageIdHash = hash.digest('hex')
+
+  let pending = []
+  let pennsieveSocket = null
+  let pennsieveReady = false
+
+  const middleware = () => {
+    console.log('middleware')
+    pennsieveSocket = new ws(`wss://api.pennsieve.net${request.url}`)
+    pennsieveSocket.on('error', console.error)
+    pennsieveSocket.on('open', () => {
+      console.log('websocket forwarding')
+      pennsieveReady = true
+      pending.forEach(m => {
+        console.log('send ' + m)
+        pennsieveSocket.send(m)
+      })
+      pending = []
+    })
+
+    pennsieveSocket.on('message', (data) => {
+      //console.log('receive ' + data)
+      socket.send(data)
+    })
+  }
+
+  socket.on('error', console.error)
+  socket.on('message', data => {
+    console.log(JSON.stringify(data))
+    if(pennsieveReady) {
+      console.log('send ' + data)
+      pennsieveSocket.send(data)
+    } else {
+      pending.push(data)
+    }
   })
-});
+
+  const download = (url) => {
+    console.log('downloading ' + url)
+    const request = https.request(`${url}?api_key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }, response => {
+      console.log(`${response.statusCode} ${response.statusMessage}`)
+      if(response.statusCode >= 300 && response.statusCode < 400) {
+        console.log(`redirect ${JSON.stringify(response.headers)}`)
+        download(response.headers.location.replace('?api_key=undefined', ''))
+        return
+      }
+      if(response.statusCode < 200 || response.status >= 300) {
+        return
+      }
+      console.log('piping')
+      const fileStream = fs.createWriteStream(packageIdHash)
+      response.pipe(fileStream).on('finish', middleware)
+    })
+    const body = querystring.stringify({ data: { nodeIds: [packageId] } })
+    request.write(body)
+    request.end()
+  }
+
+  fs.access(packageIdHash, err => {
+    if(err) {
+      download('https://api.pennsieve.net/zipit')
+    } else {
+      middleware()
+    }
+  })
+})
 
 const createWindow = () => {
   const win = new BrowserWindow({
@@ -70,8 +195,8 @@ const createWindow = () => {
 }
 
 
-app.on('window-all-closed', () => {
-  server.close(() => {
-    app.quit();
-  });
-})
+//app.on('window-all-closed', () => {
+//  server.close(() => {
+//    app.quit();
+//  });
+//})
