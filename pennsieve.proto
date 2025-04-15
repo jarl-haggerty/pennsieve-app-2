@@ -1,5 +1,5 @@
 package pennsieve;
-syntax = "proto3"
+syntax = "proto3";
 
 message Event {
     string source = 1;
@@ -10,7 +10,7 @@ message Event {
     bool isResampled = 6;
     repeated double data = 7;
     repeated uint64 times = 8;
-    repeated uint32 spikeGroup = 9
+    repeated uint32 spikeGroup = 9;
 }
 
 message Instruction {
@@ -33,7 +33,6 @@ message Segment {
     repeated double data = 12;
     uint64 pageEnd  = 13;
     string channelName = 14;
-
 }
 
 message IngestSegment {
@@ -49,5 +48,5 @@ message TimeSeriesMessage {
     Instruction instruction = 5;
     IngestSegment ingestSegment = 6;
     uint64 totalResponses = 7;
-    uint664 responseSequenceId = 8;
+    uint64 responseSequenceId = 8;
 }

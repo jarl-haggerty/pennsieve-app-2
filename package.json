@@ -25,7 +25,7 @@
     "cypress:run": "yarn cypress:setup && cypress run --browser chrome",
     "lint": "eslint --ext .js,.vue src test/unit",
     "build-dev": "yarn site-config-dev && node build/build.js",
-    "build-server": "yarn site-config-dev && node build/build-server.js",
+    "build-server": "cp pennsieve.proto dist && yarn site-config-dev && node build/build-server.js",
     "run-server": "cd dist && node main.js",
     "build-production": "yarn site-config-prod && node build/build.js",
     "commit": "commit-wizard",

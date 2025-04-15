@@ -8,13 +8,15 @@ const ws = require('ws');
 const crypto = require('crypto');
 const querystring = require('querystring');
 const protobuf = require("protobufjs");
+const {EdfFile, EdfTimeSeriesMessage} = require('./edf')
 
+const DIST = 'dist'
 const server = http.createServer((req, res) => {
-  let filename = '.' + req.url;
+  let filename = DIST + req.url;
   if(filename.endsWith('/')) {
     filename += 'index.html';
-  } else if (filename.startsWith('./N:')) {
-    filename = './index.html';
+  } else if (filename.startsWith(DIST + '/N:')) {
+    filename = DIST + '/index.html';
   }
   console.log('getting ' + filename);
   fs.readFile(filename, (err, data) => {
@@ -76,7 +78,7 @@ protobuf.load('pennsieve.proto', (err, root) => {
   const TimeSeriesMessage = root.lookupType('pennsieve.TimeSeriesMessage')
 
   const wsServer = new ws.Server({server});
-  wsServer.on('connection', (socket, request) => {
+  wsServer.on('connection', async (socket, request) => {
     console.log('websocket connect ' + request.url)
     
     const parsed = querystring.decode(request.url)
@@ -85,7 +87,11 @@ protobuf.load('pennsieve.proto', (err, root) => {
 
     const hash = crypto.createHash('sha1')
     hash.update(packageId)
-    const packageIdHash = 'visualize-test-3.edf'//hash.digest('hex')
+    //const packageIdHash = 'visualize-test-3.edf'
+    const packageIdHash = hash.digest('hex')
+    const edfFilename = `${DIST}/${packageIdHash}`
+    /** @type EdfFile */
+    let edfFile
 
     let pending = []
     let pennsieveSocket = null
@@ -109,16 +115,23 @@ protobuf.load('pennsieve.proto', (err, root) => {
         console.log('receive ' + (typeof data))
         if(typeof data === 'object') {
           const decoded = TimeSeriesMessage.decode(data)
-          console.log(decoded)
+          if(decoded.segment.requestedSamplePeriod) {
+            console.log(decoded)
+          }
         }
         socket.send(data)
       })
     }
 
+    socket.on('close', () => {
+      if(edfFile) {
+        edfFile.close()
+      }
+    })
     socket.on('error', console.error)
-    socket.on('message', data => {
+    socket.on('message', async data => {
       const parsed = JSON.parse(data)
-      //if(!parsed.hasOwnProperty('virtualChannels')) {
+      if(!parsed.hasOwnProperty('virtualChannels')) {
         if(pennsieveReady) {
           console.log('send ' + data)
           pennsieveSocket.send(data)
@@ -126,8 +139,35 @@ protobuf.load('pennsieve.proto', (err, root) => {
           pending.push(data)
         }
         return
-      //}
-      console.log(JSON.stringify(data))
+      }
+
+      /** @type {[key: string]: string} */
+      const nameToChannel = parsed.virtualChannels.reduce((a, b) => {
+        a[b.name] = b.id
+        return a
+      }, {})
+
+      const start = new Date(parsed.startTime/1000)
+      const end = new Date(parsed.endTime/1000)
+      /** @type EdfTimeSeriesMessage[] */
+      let objects
+      try {
+        objects = await edfFile.read(start, end, parsed.minMax, parsed.pixelWidth)
+      } catch(e) {
+        console.log(e)
+      }
+      console.log(start)
+      objects.forEach(obj => {
+        obj.segment.source = nameToChannel[obj.segment.channelName]
+        const encoded = TimeSeriesMessage.encode(obj).finish()
+        //console.log(obj.segment.data)
+        //console.log(obj.segment.requestedSamplePeriod)
+        //console.log(obj.segment.samplePeriod)
+        //console.log(obj.segment.nrPoints)
+        //console.log(obj.segment.data)
+        socket.send(encoded)
+      })
+      //console.log(JSON.stringify(data))
     })
 
     const download = (url) => {
@@ -148,19 +188,36 @@ protobuf.load('pennsieve.proto', (err, root) => {
           return
         }
         console.log('piping')
-        const fileStream = fs.createWriteStream(packageIdHash)
-        response.pipe(fileStream).on('finish', middleware)
+        const fileStream = fs.createWriteStream(edfFilename)
+        response.pipe(fileStream).on('finish', () => {
+          EdfFile.open(edfFilename).then(value => {
+            edfFile = value
+            middleware()
+          })
+        })
       })
-      const body = querystring.stringify({ data: { nodeIds: [packageId] } })
-      request.write(body)
+      const body = { data: JSON.stringify({ nodeIds: [packageId] }) }
+      const bodyStr = querystring.stringify({ data: JSON.stringify({ nodeIds: [packageId] }) })
+      console.log(body)
+      console.log(bodyStr)
+      request.write(bodyStr)
       request.end()
     }
 
-    fs.access(packageIdHash, err => {
+    fs.access(edfFilename, err => {
       if(err) {
         download('https://api.pennsieve.net/zipit')
       } else {
-        middleware()
+        EdfFile.validate(edfFilename).then(valid => {
+          if(valid) {
+            EdfFile.open(edfFilename).then(value => {
+              edfFile = value
+              middleware()
+            })
+          } else {
+            download('https://api.pennsieve.net/zipit')
+          }
+        })
       }
     })
   })
