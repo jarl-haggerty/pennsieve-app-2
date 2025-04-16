@@ -221,7 +221,7 @@
               }],
               selectedPlaySpeed: null,
               intervalTimer: null,
-              intervalPeriod: 150,
+              intervalPeriod: 1000,
               intervalPage: 1000000
             }
         },
@@ -278,12 +278,14 @@
           startPlay: function() {
             this.isPlaying = true
             let that = this;
-            this.intervalTimerFnc = function() {
-              that.$emit('setStart', that.start + (that.intervalPage * that.selectedPlaySpeed))
-              that.intervalTimer = setTimeout( that.intervalTimerFnc, that.intervalPeriod);
+            this.intervalTimerFnc = function(lastTime) {
+              that.$emit('setStart', that.start + (1000*that.intervalPeriod * that.selectedPlaySpeed))
+              const now = new Date()
+              const elapsed = Math.min(that.intervalPeriod, now - lastTime)
+              that.intervalTimer = setTimeout( that.intervalTimerFnc, that.intervalPeriod - elapsed, now);
             }
 
-            this.intervalTimer = setTimeout(this.intervalTimerFnc, this.intervalPeriod);
+            this.intervalTimer = setTimeout(this.intervalTimerFnc, this.intervalPeriod, new Date());
             this.$emit('playbackChanged')
 
           },
