@@ -81,9 +81,9 @@ protobuf.load('pennsieve.proto', (err, root) => {
   wsServer.on('connection', async (socket, request) => {
     console.log('websocket connect ' + request.url)
     
-    const parsed = querystring.decode(request.url)
-    const apiKey = parsed['api_key']
-    const packageId = parsed['package']
+    const parsedUrl = new URL('a:'+request.url)
+    const apiKey = parsedUrl.searchParams.get('session')
+    const packageId = parsedUrl.searchParams.get('package')
 
     const hash = crypto.createHash('sha1')
     hash.update(packageId)
@@ -172,16 +172,22 @@ protobuf.load('pennsieve.proto', (err, root) => {
 
     const download = (url) => {
       console.log('downloading ' + url)
+      const body = { data: JSON.stringify({ nodeIds: [packageId] }) }
+      const bodyStr = querystring.stringify({ data: JSON.stringify({ nodeIds: [packageId] }) })
       const request = https.request(`${url}?api_key=${apiKey}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': bodyStr.length,
+          'Accept': '*/*',
+          'Host': 'api.pennsieve.net',
+          'User-Agent': 'pesaran'
         }
       }, response => {
         console.log(`${response.statusCode} ${response.statusMessage}`)
         if(response.statusCode >= 300 && response.statusCode < 400) {
           console.log(`redirect ${JSON.stringify(response.headers)}`)
-          download(response.headers.location.replace('?api_key=undefined', ''))
+          download(response.headers.location)
           return
         }
         if(response.statusCode < 200 || response.status >= 300) {
@@ -196,8 +202,6 @@ protobuf.load('pennsieve.proto', (err, root) => {
           })
         })
       })
-      const body = { data: JSON.stringify({ nodeIds: [packageId] }) }
-      const bodyStr = querystring.stringify({ data: JSON.stringify({ nodeIds: [packageId] }) })
       console.log(body)
       console.log(bodyStr)
       request.write(bodyStr)
@@ -206,7 +210,7 @@ protobuf.load('pennsieve.proto', (err, root) => {
 
     fs.access(edfFilename, err => {
       if(err) {
-        download('https://api.pennsieve.net/zipit')
+        download('https://api.pennsieve.net/zipit/')
       } else {
         EdfFile.validate(edfFilename).then(valid => {
           if(valid) {
@@ -215,7 +219,7 @@ protobuf.load('pennsieve.proto', (err, root) => {
               middleware()
             })
           } else {
-            download('https://api.pennsieve.net/zipit')
+            download('https://api.pennsieve.net/zipit/')
           }
         })
       }
