@@ -278,14 +278,15 @@
           startPlay: function() {
             this.isPlaying = true
             let that = this;
-            this.intervalTimerFnc = function(lastTime) {
+            this.intervalTimerFnc = function() {
+              const start = new Date()
               that.$emit('setStart', that.start + (1000*that.intervalPeriod * that.selectedPlaySpeed))
               const now = new Date()
-              const elapsed = Math.min(that.intervalPeriod, now - lastTime)
-              that.intervalTimer = setTimeout( that.intervalTimerFnc, that.intervalPeriod - elapsed, now);
+              const elapsed = Math.min(that.intervalPeriod, now - start)
+              that.intervalTimer = setTimeout( that.intervalTimerFnc, that.intervalPeriod - elapsed);
             }
 
-            this.intervalTimer = setTimeout(this.intervalTimerFnc, this.intervalPeriod, new Date());
+            this.intervalTimer = setTimeout(this.intervalTimerFnc, this.intervalPeriod);
             this.$emit('playbackChanged')
 
           },

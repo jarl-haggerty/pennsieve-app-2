@@ -1018,55 +1018,8 @@
                             const curSeg = channelData.blocks[iSegm];
 
                             // Find startIndex viewPort
-                            let startIndex = Math.floor((this.start - curSeg.startTs ) / curSeg.samplePeriod);
-                            curSeg.renderStartIndex = ((startIndex > 0) ? startIndex : 0)
-
-                            let endIndex = Math.floor( ((this.start + this.duration) - (curSeg.startTs + curSeg.nrPoints*curSeg.samplePeriod))/curSeg.samplePeriod );
-                            curSeg.renderEndIndex = endIndex >= 0 ? (curSeg.nrPoints-1) : (curSeg.nrPoints + endIndex);
-
-                            // Iterate over points in segment and set cx, cy, and cy2
-                            const curCData = curSeg.cData;
-                            const curData = curSeg.parsedData;
-                            const curScale = this.globalZoomMult * channelInfo.rowScale;
-                            const xOffset = this.constants['XOFFSET'];
-
-                            // create local variable for speed
-                            const length = curSeg.parsedData[0].length;
-                            const cXArray = curCData[0];
-                            const cYArray = curCData[1];
-                            const cY2Array = curCData[2];
-                            const XArray = curData[0];
-                            const YArray = curData[1];
-                            const Y2Array = curData[2];
-
-                            // RowBaseline is offset of channel in viewPort
-                            const rowBaseLine = channelInfo.rowBaseline;
-
-                            // chDatMean is mean value of channel in viewport
-                            let chDatCenterer = 0;
-                            if (this.constants['USEMEDIAN']) {
-                                chDatCenterer = channelData.median;
-                            } else {
-                                chDatCenterer = channelData.mean;
-                            }
-
-                            const rsp = this.rsPeriod;
-                            const startT = this.start;
-                            for(let iPoint = 0; iPoint < length; iPoint++) {
-
-                                cXArray[iPoint] = (((xOffset + (XArray[iPoint] - startT ) / rsp)));
-                                cYArray[iPoint] = (((rowBaseLine + (YArray[iPoint] - chDatCenterer) * curScale)));
-
-                                if (curSeg.isMinMax) {
-
-                                    // If min and max are the same --> force 1 pixel line.
-                                    if (YArray[iPoint] === Y2Array[iPoint]) {
-                                        cY2Array[iPoint] = cYArray[iPoint] + 1;
-                                    }else {
-                                        cY2Array[iPoint] = (((rowBaseLine + (Y2Array[iPoint] - chDatCenterer) * curScale)));
-                                    }
-                                }
-                            }
+                            curSeg.renderStartIndex = 0
+                            curSeg.renderEndIndex = curSeg.nrPoints-1;
                         }
                         break;
                 }
@@ -1084,7 +1037,7 @@
 
                 // clear canvas
                 ctx.clearRect(0, 0, this.cWidth, this.cHeight);
-                ctxb.clearRect(0, 0, this.cWidth, this.cHeight);
+                //ctxb.clearRect(0, 0, this.cWidth, this.cHeight);
 
                 // update number of visible channels
                 const nrVisCh = this.viewerChannels.reduce((accumulator, currentValue) => {
@@ -1106,6 +1059,7 @@
                 // let allTimes = 0;
                 for (let ch in this.viewData.channels ) {
                     if (this.viewData.channels.hasOwnProperty(ch)) {
+                        ctx.save()
                         // const chTimeStart = new Date().getTime();
 
                         const curChannelData = this.viewData.channels[ch];
@@ -1135,11 +1089,21 @@
                             let xPos1 = Math.floor((((xOffset + (curChannelView.dataSegments[i] - startT ) / (rsP)))));
                             let xPos2 = Math.floor((((xOffset + (curChannelView.dataSegments[i + 1] - startT ) / (rsP)))));
                             let yPos = Math.floor(curChannelView.rowBaseline - blurHeight/2);
-                            ctxb.fillRect(xPos1, yPos, xPos2-xPos1, blurHeight);
+                            //ctxb.fillRect(xPos1, yPos, xPos2-xPos1, blurHeight);
                         }
 
                         // Get canvas points for current channel
                         this.getPointCoords(curChannelView, curChannelData, isRedraw);
+                        ctx.translate(xOffset, curChannelView.rowBaseline)
+                        const curScale = this.globalZoomMult * curChannelView.rowScale;
+                        ctx.scale(1/rsP, curScale);
+                        
+                        let chDatCenterer = 0;
+                        if (this.constants['USEMEDIAN']) {
+                            chDatCenterer = curChannelData.median;
+                        } else {
+                            chDatCenterer = curChannelData.mean;
+                        }
 
                         // check Channel-Type
                         const nrBlocks = curChannelData.blocks.length;
@@ -1173,14 +1137,16 @@
                         let realSamplePeriod = 1000000 * (1/curChannelView.sf);
 
                         for (let block = 0; block < nrBlocks; block++) {
+                            ctx.save()
 
                             const curBlock = curChannelData.blocks[block];
+                            ctx.translate(curBlock.startTs-startT, -chDatCenterer)
 
                             if (curBlock.nrPoints === 0) {
                                 continue;
                             }
 
-                            const curData = curBlock.cData;
+                            const curData = curBlock.parsedData;
                             const curDataLength = curBlock.nrPoints;
                             const xVec = curData[0];
                             const yVec = curData[1];
@@ -1189,7 +1155,7 @@
                             let startIndex = curBlock.renderStartIndex;
                             let endIndex = curBlock.renderEndIndex
 
-                            ctxb.clearRect(Math.floor(xVec[startIndex]), Math.floor(curChannelView.rowBaseline - blurHeight/2), Math.ceil(xVec[endIndex]-xVec[startIndex] + 2), blurHeight+1);
+                            //ctxb.clearRect(Math.floor(xVec[startIndex]), Math.floor(curChannelView.rowBaseline - blurHeight/2), Math.ceil(xVec[endIndex]-xVec[startIndex] + 2), blurHeight+1);
 
                             // Check if minMax and render data
                             switch (curBlock.type) {
@@ -1208,48 +1174,52 @@
                                     }
 
                                     if (doPolFill) {
+                                        if(!curBlock.path) {
+                                            const path = new Path2D();
 
-                                        ctx.beginPath();
+                                            // set cursor to starting point of polygon
+                                            //if (block > 0 ) {//&& !this.isStreaming){
+                                            //    if(xVec[startIndex] < (lastBlockEnd.x + 3)) {
+                                            //        ctx.moveTo(lastBlockEnd.x, lastBlockEnd.y);
+                                            //    } else {
+                                            //        ctx.moveTo(xVec[startIndex], yVec[startIndex]);
+                                            //    }
+    //
+                                            //} else{
+                                                path.moveTo(xVec[startIndex], yVec[startIndex]);
+                                            //}
 
-                                        // set cursor to starting point of polygon
-                                        if (block > 0 ) {//&& !this.isStreaming){
-                                            if(xVec[startIndex] < (lastBlockEnd.x + 3)) {
-                                                ctx.moveTo(lastBlockEnd.x, lastBlockEnd.y);
-                                            } else {
-                                                ctx.moveTo(xVec[startIndex], yVec[startIndex]);
+                                            // Draw lines in segment
+                                            for (let i = startIndex; i < (endIndex+1); i++) {
+                                                path.lineTo(xVec[i], yVec[i]);
+                                            }
+                                            for (let i2 = (endIndex-1); i2 >= startIndex; i2--) {
+                                                path.lineTo(xVec[i2], y2Vec[i2]);
                                             }
 
-                                        } else{
-                                            ctx.moveTo(xVec[startIndex], yVec[startIndex]);
-                                        }
+                                            // Draw line to end of last segment
+                                            //if (block > 0 ) {//&& !this.isStreaming){
+                                            //    if(xVec[startIndex] < (lastBlockEnd.x + 3)) {
+                                            //        ctx.lineTo(lastBlockEnd.x, lastBlockEnd.y2);
+                                            //    }
+                                            //}
 
-                                        // Draw lines in segment
-                                        for (let i = startIndex; i < (endIndex+1); i++) {
-                                            ctx.lineTo(xVec[i], yVec[i]);
+                                            path.closePath();
+                                            curBlock.path = path
                                         }
-                                        for (let i2 = (endIndex-1); i2 >= startIndex; i2--) {
-                                            ctx.lineTo(xVec[i2], y2Vec[i2]);
-                                        }
-
-                                        // Draw line to end of last segment
-                                        if (block > 0 ) {//&& !this.isStreaming){
-                                            if(xVec[startIndex] < (lastBlockEnd.x + 3)) {
-                                                ctx.lineTo(lastBlockEnd.x, lastBlockEnd.y2);
-                                            }
-                                        }
-
-                                        ctx.closePath();
-                                        ctx.fill();
+                                        ctx.fill(curBlock.path);
                                     } else {
+                                        if(!curBlock.path) {
+                                            const path = new Path2D();
+                                            for (let i = startIndex; i < (endIndex+1); i++) {
 
-                                        ctx.beginPath();
-                                        for (let i = startIndex; i < (endIndex+1); i++) {
-
-                                            ctx.lineTo(xVec[i], yVec[i]);
-                                            ctx.lineTo(xVec[i], y2Vec[i]);
-                                            ctx.moveTo(xVec[i], yVec[i]);
+                                                path.lineTo(xVec[i], yVec[i]);
+                                                path.lineTo(xVec[i], y2Vec[i]);
+                                                path.moveTo(xVec[i], yVec[i]);
+                                            }
+                                            curBlock.path = path
                                         }
-                                        ctx.stroke();
+                                        ctx.stroke(curBlock.path);
                                     }
 
                                 } else {
@@ -1292,8 +1262,9 @@
                                 y: yVec[curDataLength -1],
                                 y2: y2Vec[curDataLength -1]
                             }
-
+                            ctx.restore()
                         }
+                        ctx.restore()
 
                         // const chTimeEnd = new Date().getTime();
                         // allTimes = allTimes +(chTimeEnd-chTimeStart);
@@ -1548,7 +1519,7 @@
                       let cData = new Array(3);
                       let k=0;
                       while (k < 3) {
-                          cData[k] = new Float32Array(dataPoints[0].length);
+                          cData[k] = new Float64Array(dataPoints[0].length);
                           k++;
                       }
 
@@ -1610,7 +1581,7 @@
                         for (let i = 0; i < nrVal; i++) {
                           let curY = -segment.data[curI];
                           let curY2 = -segment.data[curI + 1];
-                          parsedData[0][i] = startTs + (i * segment.samplePeriod);
+                          parsedData[0][i] = (i * segment.samplePeriod);
                           parsedData[1][i] = curY;
                           parsedData[2][i] = curY2;
                           if (!isNaN(curY)) {
@@ -1625,7 +1596,7 @@
                         //its just one big list of values
                           for (let i = 0; i < nrVal; i++) {
                               let curY = -segment.data[i];
-                              parsedData[0][i] = startTs + (i * segment.samplePeriod);
+                              parsedData[0][i] = (i * segment.samplePeriod);
                               parsedData[1][i] = curY;
                               if (!isNaN(curY)) {
                                   nrValidPoints++;
@@ -1647,7 +1618,7 @@
                       let cData = new Array(3);
                       let k=0;
                       while (k < 3) {
-                          cData[k] = new Float32Array(parsedData[0].length);
+                          cData[k] = new Float64Array(parsedData[0].length);
                           k++;
                       }
 
